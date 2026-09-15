@@ -2061,8 +2061,6 @@ final_covariates <- bind_rows(ISTAT_indicators, modern_indicators) %>%
 
 #################################################################################
 
-## 2. SECOND FIX
-
 # 1. Define the mapping between Election Year and Census Year
 df_storico_master <- df_storico_master %>%
   mutate(
