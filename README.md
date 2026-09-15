@@ -16,9 +16,9 @@ Spiega quale versione di R hai usato e quali pacchetti sono necessari per far gi
 The general workflow is the following:
 1. Execute `0_DataBase_Creation.R` to build the final-complete database (df_continuous). The script shows the steps to manage and import the ISTAT covariates, limits, provincial codes matching and solving errors and issues. (SECTION 1.3)
 2. Execute `1_Exploratory_Analysis.R` to generate maps and initial observations on the data. (SECTION 1.4)
-3. Execute `2_Geostatistical_Model.R` to estimate the INLA models and their formulations. (CHAPTER 2)
+3. Execute `2_INLA_Models.R` to estimate the INLA models and their formulations. (CHAPTER 2)
 4. Execute `3_Output_Analysis.R` to evaluate fit, residual analysis for model-selection. Extract the posterior estimates, the random effect and hyperparameters. (SECTIONS 3.1 to 3.5)
-5. Execute `4_MCMC_Output.R` to execute the MCMC-based models and compare them with the INLA-based one. (SECTION 3.6).
+5. Execute `4_MCMC_Models.R` to execute the MCMC-based models and compare them with the INLA-based one. (SECTION 3.6).
 
 ## The repository structure
 * `Confini/`: contains the Shapefile for municipalities, provincial and regional spatial shapes and limits.
