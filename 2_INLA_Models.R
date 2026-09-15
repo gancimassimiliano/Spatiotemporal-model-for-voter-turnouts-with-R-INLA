@@ -56,14 +56,13 @@ df_storico_master <- df_storico_master %>%
 # ==============================================================================
 # PHASE 1: AGGREGATION & STANDARDIZATION
 # ==============================================================================
-
 electoral_laws_timeline <- df_storico_master %>%
   select(ANNO, LEGGE_ELETTORALE) %>%
   distinct() %>%
   drop_na(LEGGE_ELETTORALE) %>%
   arrange(ANNO)
 
-# 1A. Aggregate up to the Province Level
+# Province-Level aggregation
 df_model <- df_storico_master %>%
   filter(TIPO_ELEZIONE == "CAMERA" | TIPO_ELEZIONE == "Camera") %>%
   group_by(PRO_COM_22, COD_PROV_22, ANNO) %>%
@@ -92,7 +91,7 @@ df_model <- df_storico_master %>%
     Y_turnout = ifelse(Y_turnout <= 0, 0.0001, Y_turnout)
   )
 
-# 1B. Standardize Covariates STRICTLY on observed elections
+# Standardize Covariates STRICTLY on observed elections
 df_model_scaled <- df_model %>%
   mutate(
     Density_z    = scale(P7_Density)[,1],
@@ -137,7 +136,6 @@ g_prov <- inla.read.graph("italy_province.graph")
 # ==============================================================================
 # PHASE 3: FINAL SPATIOTEMPORAL DATASET FOR INLA
 # ==============================================================================
-
 df_continuous <- df_model_scaled %>%
   # 1. Attach the spatial dictionary created in Phase 2
   left_join(spatial_dict_prov, by = "COD_PROV_22") %>%
@@ -158,7 +156,7 @@ df_continuous <- df_model_scaled %>%
     id_space_int = id_space_main
   )
 
-# Extract the exact continuous time points for the OU process
+# Extract the continuous time points for the OU process
 target_time_cont <- unique(sort(df_continuous$Time_Cont))
 
 # ==============================================================================
@@ -216,7 +214,6 @@ formula5 <- Y_turnout ~ 1 + Density_z + Aging_z + Education_z + Employment_z +
 # ==============================================================================
 # PHASE 5: EXECUTING THE MODELS
 # ==============================================================================
-
 # Centralize controls so they are easy to change globally if needed
 ctrl_compute <- list(dic = TRUE, waic = TRUE, cpo = TRUE, config = TRUE)
 ctrl_pred    <- list(compute = TRUE, link = 1)
