@@ -23,4 +23,5 @@ The general workflow is the following:
 ## The repository structure
 * `Confini/`: contains the Shapefile for municipalities, provincial and regional spatial shapes and limits.
 * `Covariate/`: contains the ISTAT indicators used as covariates in the regression models.
-* `Dataset/`: contains the actual electoral data from ELIGENDO.* `Outputs/`: contains Model charts and exports from the scripts or used in the thesis.
+* `Dataset/`: contains the actual electoral data from ELIGENDO.
+* `Outputs/`: contains Model charts and exports from the scripts or used in the thesis.
