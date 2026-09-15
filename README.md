@@ -12,7 +12,7 @@ Spiega quale versione di R hai usato e quali pacchetti sono necessari per far gi
 * `sf` for spatial data, to manage ISTAT limits.
 * other other packages for dataframe management, plots and visualization are all specified in the scripts: (`dplyr`, `stringi`, `stringr`, `viridis`, `ggplot2`, `scales`, `tifyr`).
 
-## How to reproduce the analysis
+## How to reproduce the analysis (the numbered scripts)
 The general workflow is the following:
 1. Execute `0_DataBase_Creation.R` to build the final-complete database (df_continuous). The script shows the steps to manage and import the ISTAT covariates, limits, provincial codes matching and solving errors and issues. (SECTION 1.3)
 2. Execute `1_Exploratory_Analysis.R` to generate maps and initial observations on the data. (SECTION 1.4)
@@ -23,6 +23,4 @@ The general workflow is the following:
 ## The repository structure
 * `Confini/`: contains the Shapefile for municipalities, provincial and regional spatial shapes and limits.
 * `Covariate/`: contains the ISTAT indicators used as covariates in the regression models.
-* `Dataset/`: contains the actual electoral data from ELIGENDO.
-* `Scripts/`: contains R codes numbered in order of execution.
-* `Outputs/`: contains Model charts and exports from the scripts or used in the thesis.
+* `Dataset/`: contains the actual electoral data from ELIGENDO.* `Outputs/`: contains Model charts and exports from the scripts or used in the thesis.
