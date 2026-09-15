@@ -5,6 +5,7 @@ This repository contains the R codes used for my bachelor thesis named "The Dyna
 Spiega quale versione di R hai usato e quali pacchetti sono necessari per far girare il codice.
 * R (version 4.5.2) has been used. 
 * `INLA` and `brms` are the key packages to install for the INLA and MCMC models.
+  
   -tutorial to install INLA at: "https://www.r-inla.org/download/".
   
   -`brms` package info at: "https://cran.r-project.org/web/packages/brms/index.html".
