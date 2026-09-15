@@ -6,9 +6,9 @@ Spiega quale versione di R hai usato e quali pacchetti sono necessari per far gi
 * R (version 4.5.2) has been used. 
 * `INLA` and `brms` are the key packages to install for the INLA and MCMC models.
   
-  -tutorial to install INLA at: "https://www.r-inla.org/download/".
+  - tutorial to install INLA at: "https://www.r-inla.org/download/".
   
-  -`brms` package info at: "https://cran.r-project.org/web/packages/brms/index.html".
+  - `brms` package info at: "https://cran.r-project.org/web/packages/brms/index.html".
 * `sf` for spatial data, to manage ISTAT limits.
 * other other packages for dataframe management, plots and visualization are all specified in the scripts: (`dplyr`, `stringi`, `stringr`, `viridis`, `ggplot2`, `scales`, `tifyr`).
 
