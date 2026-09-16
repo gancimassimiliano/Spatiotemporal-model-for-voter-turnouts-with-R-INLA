@@ -11,14 +11,17 @@ load("C:/Users/massi/OneDrive/Desktop/Spatiotemporal-model-for-voter-turnouts-wi
 
 # 1. Store the models in a named list for clean extraction
 model_list <- list(
-  #"Model 0 (Baseline No Space-Time Effects)" = model0,
-  #"Model 1 (Spatiotemporal No Interactions)" = model1,
-  #"Model 2 (Type I: iid x iid)" = model2,
+  "Baseline Model (Baseline No Space-Time Effects)" = model_baseline,
+  "Model 0 (Spatiotemporal No Interactions)" = model0,
+  "Model 1 (TYPE I: iid x iid)" = model1,
+  "Model 2 (Type II: iid x ar1)" = model2,
   "Model 3 (Type III: besag x iid)" = model3,
-  "Model 4 (Bernardinelli)" = model4)
+  "Model 4 (Type IV: besag x ar1)" = model4,
+  "Model 5 (Bernardinelli)" = model5,
+  "Model 6 (Bernardinelli (No Laws))" = model6)
 
 
-### 3.1.1. WAIC and DAIC ----
+### 3.1.1. WAIC and DIC ----
 
 # 2. Extract the metrics into a data frame
 selection_table <- data.frame(
@@ -57,10 +60,20 @@ print(cpo_summary)
 library(ggplot2)
 library(dplyr)
 
+model_list <- list(
+  #"Baseline Model (Baseline No Space-Time Effects)" = model_baseline,
+  #"Model 0 (Spatiotemporal No Interactions)" = model0,
+  "Model 1 (TYPE I: iid x iid)" = model1,
+  "Model 2 (Type II: iid x ar1)" = model2,
+  "Model 3 (Type III: besag x iid)" = model3,
+  "Model 4 (Type IV: besag x ar1)" = model4,
+  "Model 5 (Bernardinelli)" = model5,
+  "Model 6 (Bernardinelli (No Laws))" = model6)
+
 diagnostic_df <- data.frame()
 
-for (m_name in names(model_list)) {
-  model_obj <- model_list[[m_name]]
+for (m in names(model_list)) {
+  model_obj <- model_list[[m]]
   
   # Extract fitted values subset to the observed data
   fitted_vals <- model_obj$summary.fitted.values$mean[1:nrow(df_continuous)]
@@ -74,7 +87,7 @@ for (m_name in names(model_list)) {
   temp_df <- data.frame(
     Fitted = fitted_vals, 
     Residuals = quantile_residuals, # Using quantile residuals instead of raw response residuals
-    Model = m_name
+    Model = m
   )
   
   diagnostic_df <- rbind(diagnostic_df, temp_df)
@@ -113,28 +126,6 @@ plot_homo_all <- ggplot(diagnostic_df, aes(x = Fitted, y = Residuals)) +
         plot.title = element_text(face = "bold", size = 12))
 
 print(plot_homo_all)
-
-# 2. Extract Dunn-Smyth Randomized Quantile Residuals
-diagnostic_df <- data.frame()
-
-for (m_name in names(model_list)) {
-  m <- model_list[[m_name]]
-  
-  # Extract fitted values subset to the observed data
-  fitted_vals <- m$summary.fitted.values$mean[1:nrow(df_continuous)]
-  
-  # Extract PIT values, squeeze to prevent infinite bounds, and map to Standard Normal
-  pit_vals <- m$cpo$pit[1:nrow(df_continuous)]
-  pit_sqz <- pmax(pmin(pit_vals, 0.9999), 0.0001)
-  q_res <- qnorm(pit_sqz)
-  
-  temp_df <- data.frame(
-    Fitted = fitted_vals,
-    Residuals = q_res,
-    Model = m_name
-  )
-  diagnostic_df <- rbind(diagnostic_df, temp_df)
-}
 
 # 3. Calculate Empirical Coverage (The Dispersion Check)
 dispersion_check <- diagnostic_df %>%
@@ -178,16 +169,16 @@ election_years <- unique(sort(df_continuous$ANNO))
 
 spatial_ac_results <- data.frame()
 
-for (m_name in names(model_list)) {
+for (m in names(model_list)) {
   for (yr in election_years) {
     df_yr <- res_data %>% 
-      filter(Model == m_name, ANNO == yr) %>% 
+      filter(Model == m, ANNO == yr) %>% 
       arrange(id_space_main)
     
     m_test <- moran.test(df_yr$Residuals, listw_prov, zero.policy = TRUE)
     
     spatial_ac_results <- bind_rows(spatial_ac_results, data.frame(
-      Model = m_name,
+      Model = m,
       Year = yr,
       Morans_I = m_test$estimate[1],
       p_value = m_test$p.value
@@ -221,17 +212,13 @@ print("Temporal Autocorrelation (Lag-1) Summary:")
 print(temporal_summary)
 
 # ==============================================================================
-# 3.2: CROSS-SECTIONAL MODELS
+# 3.2: THE OPTIMAL SPATIO-TEMPORAL MODEL
 # ==============================================================================
 
-# ==============================================================================
-# 3.3: THE OPTIMAL SPATIO-TEMPORAL MODEL
-# ==============================================================================
-
-
+# Now we focus on Model 4: Type IV Knorr-Held interaction
 
 ### A. FIXED EFFECTS ----
-fixed_raw <- as.data.frame(model3$summary.fixed)
+fixed_raw <- as.data.frame(model4$summary.fixed)
 
 fixed_table <- fixed_raw %>%
   # Convert rownames to a column so we can filter by the covariate names
@@ -249,7 +236,7 @@ fixed_table <- fixed_raw %>%
 print(fixed_table %>% mutate_if(is.numeric, round, 2))
 
 ### B. HYPERPARAMETERS ----
-hyper_raw <- model3$summary.hyperpar
+hyper_raw <- model4$summary.hyperpar
 
 hyper_table <- hyper_raw %>%
   select(mean, sd, `0.025quant`, `0.975quant`, mode) %>%
@@ -265,7 +252,7 @@ print(round(hyper_table, 2))
 
 
 ### C . RANDOM EFFECTS: Continuous Temporal Main Effect (OU Process) ----
-time_df <- as.data.frame(model3$summary.random$Time_Cont) %>%
+time_df <- as.data.frame(model4$summary.random$Time_Cont) %>%
   mutate(Real_Year = ID + 1987) # Convert continuous index back to actual years
 
 plot_time <- ggplot(time_df, aes(x = Real_Year, y = mean)) +
@@ -286,7 +273,7 @@ print(plot_time)
 ### D. POSTERIOR PREDICTIONS: Observed vs. Fitted Density Overlay ----
 pred_df <- data.frame(
   Observed = df_continuous$Y_turnout,
-  Fitted = model3$summary.fitted.values$mean[1:nrow(df_continuous)]
+  Fitted = model4$summary.fitted.values$mean[1:nrow(df_continuous)]
 ) %>%
   tidyr::pivot_longer(cols = c(Observed, Fitted), names_to = "Type", values_to = "Turnout")
 
@@ -308,10 +295,11 @@ plot_pred <- ggplot(pred_df, aes(x = Turnout, fill = Type, color = Type)) +
 print(plot_pred)
 
 ### E. MAP THE SPATIAL EFFECT (BYM2)
+
 num_provinces <- nrow(map_prov_2022)
 spatial_main_df <- data.frame(
   id_space_main = 1:num_provinces,
-  Spatial_Effect = model3$summary.random$id_space_main$mean[1:num_provinces]
+  Spatial_Effect = model4$summary.random$id_space_main$mean[1:num_provinces]
 )
 
 # Join with the spatial map 
@@ -323,12 +311,10 @@ map_spatial_effect <- map_prov_2022 %>%
 plot_spatial <- ggplot(map_spatial_effect) +
   geom_sf(aes(fill = Spatial_Effect), color = "black", linewidth = 0.1) +
   scale_fill_gradient2(
-    low = "firebrick", mid = "white", high = "steelblue", midpoint = 0,
+    low = "indianred1", mid = "white", high = "steelblue2", midpoint = 0,
     name = "Log-Odds\nDeviation"
   ) +
   theme_void() +
-  labs(
-  ) +
   theme(
     plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
     plot.subtitle = element_text(size = 11, hjust = 0.5),
@@ -342,7 +328,7 @@ print(plot_spatial)
 fitted_values_df <- df_continuous %>%
   select(id_space_main, ANNO) %>%
   mutate(
-    Fitted_Turnout = model3$summary.fitted.values$mean[1:n()]
+    Fitted_Turnout = model4$summary.fitted.values$mean[1:n()]
   )
 
 # Join the complete dataset to the spatial map to include ALL 10 years
@@ -354,24 +340,32 @@ map_predictive <- map_prov_2022 %>%
 # Plot the Posterior Predictive Turnouts
 plot_predictive <- ggplot(map_predictive) +
   geom_sf(aes(fill = Fitted_Turnout), color = "black", linewidth = 0.05) +
+  
+  # Keep the continuous scale exactly as you had it
   scale_fill_distiller(
-    palette = "YlGnBu", # <-- Brewer Yellow-Green-Blue palette
-    direction = 1,      # <-- 1 maps light yellow to low turnout, dark blue to high turnout
+    palette = "YlGnBu", 
+    direction = 1,      
     labels = label_percent(accuracy = 1),
     name = "Predicted\nTurnout",
     limits = c(min(fitted_values_df$Fitted_Turnout), max(fitted_values_df$Fitted_Turnout))
   ) +
-  # Use 5 columns to create a balanced 2x5 grid for the 10 elections
+  
+  # Use 5 columns to create a balanced 2x5 grid
   facet_wrap(~ ANNO, ncol = 5) +
-  theme_void()  +
+  theme_void() +
+  
   theme(
-    plot.title = element_text(face = "bold", size = 16, hjust = 0.5, margin = margin(b = 10)),
-    plot.subtitle = element_text(size = 12, hjust = 0.5, margin = margin(b = 20)),
-    strip.text = element_text(face = "bold", size = 11, margin = margin(b = 5)),
-    # Move legend to bottom so it doesn't crush the 5-column map layout laterally
+    # --- GRID & BOX STYLING ---
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.8),
+    strip.background = element_rect(color = "black", fill = "#faebd7", linewidth = 0.8), 
+    strip.text = element_text(face = "bold", color = "black", margin = margin(t = 4, b = 4)),
+    panel.spacing = unit(0, "lines"), # Seamless grid packing
+    
+    # --- LEGEND STYLING ---
     legend.position = "bottom",
     legend.key.width = unit(2.5, "cm"),
-    legend.title = element_text(face = "bold", vjust = 0.8)
+    legend.title = element_text(face = "bold", vjust = 0.8),
+    legend.margin = margin(t = 15) # Adds a little breathing room between the grid and legend
   )
 
 print(plot_predictive)
@@ -399,7 +393,7 @@ print(odds_ratios %>% mutate_if(is.numeric, round, 3))
 
 # 2. Plot the Marginal Effect Curves
 # Extract the national intercept to calculate true probabilities
-intercept <- model3$summary.fixed["(Intercept)", "mean"]
+intercept <- model4$summary.fixed["(Intercept)", "mean"]
 
 # Create a sequence from -3 to +3 Standard Deviations
 sd_seq <- seq(-3, 3, length.out = 100)
@@ -444,49 +438,104 @@ plot_marginal <- ggplot(marginal_df, aes(x = SD_Change, y = Predicted_Turnout, c
 
 print(plot_marginal)
 
-### H. MAPPING SPACE-TIME INTERACTIONS ----
-# Extract the Type III interaction posterior means
-interaction_df <- df_continuous %>%
-  select(id_space_main, ANNO) %>%
-  mutate(
-    Interaction_Effect = model3$summary.random$id_space_int$mean[1:n()]
-  )
+### H. MAPPING SPACE-TIME INTERACTIONS (ALL 4 KNORR-HELD TYPES) ----
 
-# Join to the spatial map for all 10 years
-map_interactions <- map_prov_2022 %>%
-  mutate(id_space_main = row_number()) %>%
-  left_join(interaction_df, by = "id_space_main")
+# Create a list defining the 4 models and their specific temporal architectures
+interaction_models <- list(
+  list(obj = model1, grid_type = "discrete"),
+  list(obj = model2, grid_type = "yearly"),
+  list(obj = model3, grid_type = "discrete"),
+  list(obj = model4, grid_type = "yearly")
+)
 
-# Plot the Interaction Shocks (Diverging scale around 0)
-plot_interactions <- ggplot(map_interactions) +
-  geom_sf(aes(fill = Interaction_Effect), color = "black", linewidth = 0.05) +
-  # Using a Red-Blue diverging scale: Red = negative shock, Blue = positive shock
-  scale_fill_distiller(
-    palette = "RdBu", 
-    direction = 1, 
-    name = "Local Shock\n(Log-Odds)"
-  ) +
-  facet_wrap(~ ANNO, ncol = 5) +
-  theme_void()  +
-  theme(
-    plot.title = element_text(face = "bold", size = 16, hjust = 0.5, margin = margin(b = 10)),
-    plot.subtitle = element_text(size = 12, hjust = 0.5, margin = margin(b = 20)),
-    strip.text = element_text(face = "bold", size = 11, margin = margin(b = 5)),
-    legend.position = "bottom",
-    legend.key.width = unit(2.5, "cm")
-  )
-
-print(plot_interactions)
-
-# Optional: Export the interaction map in high definition
-ggsave("interaction_shocks_map.png", plot = plot_interactions, width = 11.7, height = 8.3, dpi = 300, bg = "white")
+# Loop through each model to extract, join, and plot
+for (m in interaction_models) {
+  
+  # 1. Extract the raw INLA interaction matrix
+  int_raw <- as.data.frame(m$obj$summary.random$id_space_int)
+  
+  # 2. Reconstruct the Kronecker structure based on the model's grid type
+  if (m$grid_type == "discrete") {
+    int_raw <- int_raw %>%
+      mutate(
+        id_space_main = rep(1:107, times = 10),
+        id_time_discrete = rep(1:10, each = 107)
+      ) %>%
+      select(id_space_main, id_time_discrete, Interaction_Effect = mean)
+    
+    int_df <- df_continuous %>%
+      select(id_space_main, id_time_discrete, COD_PROV_22, ANNO) %>%
+      left_join(int_raw, by = c("id_space_main", "id_time_discrete"))
+    
+  } else if (m$grid_type == "yearly") {
+    int_raw <- int_raw %>%
+      mutate(
+        id_space_main = rep(1:107, times = 36),
+        id_time_yearly = rep(1:36, each = 107)
+      ) %>%
+      select(id_space_main, id_time_yearly, Interaction_Effect = mean)
+    
+    int_df <- df_continuous %>%
+      select(id_space_main, id_time_yearly, COD_PROV_22, ANNO) %>%
+      left_join(int_raw, by = c("id_space_main", "id_time_yearly"))
+  }
+  
+  # 3. Join back to the spatial polygons and DISCRETIZE the interaction effect
+  map_interactions <- map_prov_2022 %>%
+    mutate(id_space_main = row_number()) %>%
+    left_join(int_df, by = "id_space_main") %>%
+    # Create the strict 3-class categorical variable
+    mutate(Shock_Class = cut(
+      Interaction_Effect,
+      breaks = c(-Inf, -0.01, 0.01, Inf),
+      labels = c("[-1, 0.01]", "(-0.01, 0.01]", "(0.01, 1]"),
+      right = TRUE # Ensures intervals are closed on the right (..., x]
+    ))
+  
+  # 4. Generate the Plot (Boxed Grid + Categorical Legend)
+  plot_int <- ggplot(map_interactions) +
+    # Map the fill to our newly created categorical variable
+    geom_sf(aes(fill = Shock_Class), color = "black", linewidth = 0.05) +
+    
+    scale_fill_manual(
+      values = c(
+        "[-1, 0.01]" = "steelblue4",      
+        "(-0.01, 0.01]" = "grey98", 
+        "(0.01, 1]" = "orangered4"        
+      ),
+      name = "Local Shock\n(Log-Odds)",
+      drop = FALSE,
+      guide = guide_legend(reverse = FALSE) 
+    ) +
+    
+    facet_wrap(~ ANNO, ncol = 5) +
+    theme_void() + 
+    
+    theme(
+      # --- GRID & BOX STYLING ---
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 0.8),
+      strip.background = element_rect(color = "black", fill = "#faebd7", linewidth = 0.8), 
+      strip.text = element_text(face = "bold", color = "black", margin = margin(t = 4, b = 4)),
+      panel.spacing = unit(0, "lines"), 
+      
+      # --- CATEGORICAL LEGEND STYLING ---
+      legend.position = "right",
+      # Adds a black border around the individual legend color boxes so the "white" box doesn't vanish
+      legend.key = element_rect(color = "black", linewidth = 0.5),
+      legend.key.size = unit(0.7, "cm"), 
+      legend.title = element_text(face = "bold", hjust = 0),
+      legend.text = element_text(size = 10)
+    )
+  
+  print(plot_int)
+}
 
 ### I. ELECTORAL ANOMALIES (OUTLIERS & RAW PREDICTION ERROR) ----
 
 # 1. Calculate the raw percentage point difference between Observed and Fitted
 outliers_df <- df_continuous %>%
   mutate(
-    Fitted_Turnout = model3$summary.fitted.values$mean[1:n()],
+    Fitted_Turnout = model4$summary.fitted.values$mean[1:n()],
     # Calculate Error (Positive = voted higher than expected, Negative = voted lower)
     Error = Y_turnout - Fitted_Turnout,
     Abs_Error = abs(Error)
@@ -510,14 +559,8 @@ print(top_positive %>% mutate_if(is.numeric, round, 3))
 print("Top 20 Unpredicted Crashes in Turnout (Negative Outliers):")
 print(top_negative %>% mutate_if(is.numeric, round, 3))
 
-
-############################
-
-library(dplyr)
-
-# 1. Bind the interaction log-odds to your main dataframe
-shocks_df <- df_continuous %>%
-  mutate(Interaction_Effect = model3$summary.random$id_space_int$mean[1:n()]) %>%
+# 1. Use the safely mapped interaction_df we just created
+shocks_df <- interaction_df %>%
   select(COD_PROV_22, ANNO, Interaction_Effect)
 
 # 2. Extract Top 20 Positive Shocks (Absorbed Surges)
@@ -528,7 +571,7 @@ top_positive_shocks <- shocks_df %>%
 print("Top 20 Positive Local Shocks (Log-Odds):")
 print(top_positive_shocks %>% mutate_if(is.numeric, round, 4))
 
-# 3. Extract Top 10 Negative Shocks (Absorbed Crashes)
+# 3. Extract Top 20 Negative Shocks (Absorbed Crashes)
 top_negative_shocks <- shocks_df %>%
   arrange(Interaction_Effect) %>%
   head(20)

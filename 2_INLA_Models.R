@@ -159,6 +159,13 @@ df_continuous <- df_model_scaled %>%
 # Extract the continuous time points for the OU process
 target_time_cont <- unique(sort(df_continuous$Time_Cont))
 
+# Ensure the yearly index is created for the structured interactions
+df_continuous <- df_continuous %>%
+  mutate(
+    # Map elections to exactly where they fall in the 36-year grid (1987-2022)
+    id_time_yearly = ANNO - 1987 + 1 
+  )
+
 # ==============================================================================
 # PHASE 4: THE SPATIO-TEMPORAL MODELS
 # ==============================================================================
@@ -175,22 +182,33 @@ pc_prior_ou <- list(
   prec = list(prior = "pc.prec", param = c(1, 0.01))
 )
 
+# Define the AR1 PC Prior for the interaction's temporal memory
+pc_prior_ar1 <- list(
+  rho = list(prior = "pc.cor1", param = c(0, 0.9)) # Base assumption: correlation is 0, but can be up to 0.9
+)
+
 
 ### 4.2.: Define the formulas for the linear predictor
 
-# BASELINE (Model 0): Beta GLM with no Spatial nor Time effect
-formula0 <- Y_turnout ~ 1 + Aging_z + Education_z + Employment_z + LEGGE_ELETTORALE
+# BASELINE MODEL: Beta GLM with no Spatial nor Time effect
+formula_baseline <- Y_turnout ~ 1 + Density_z + Aging_z + Education_z + Employment_z + LEGGE_ELETTORALE
 
-# NO INTERACTION (Model 1): Main Time (OU) + Main Space (BYM2)
-formula1 <- Y_turnout ~ 1 + Density_z + Aging_z + Education_z + Employment_z + LEGGE_ELETTORALE +
+# NO INTERACTION (Model 0): Main Time (OU) + Main Space (BYM2)
+formula0 <- Y_turnout ~ 1 + Density_z + Aging_z + Education_z + Employment_z + LEGGE_ELETTORALE +
   f(Time_Cont, model = "ou", values = target_time_cont, hyper = pc_prior_ou) +
   f(id_space_main, model = "bym2", graph = g_prov, scale.model = TRUE, hyper = pc_prior_bym2)
 
-# TYPE I (Model 2): Base + Unstructured Space x Unstructured Time (iid x iid)
-formula2 <- Y_turnout ~ 1 + Density_z + Aging_z + Education_z + Employment_z + LEGGE_ELETTORALE +
+# TYPE I (Model 1): Base + Unstructured Space x Unstructured Time (iid x iid)
+formula1 <- Y_turnout ~ 1 + Density_z + Aging_z + Education_z + Employment_z + LEGGE_ELETTORALE +
   f(Time_Cont, model = "ou", values = target_time_cont, hyper = pc_prior_ou) + 
   f(id_space_main, model = "bym2", graph = g_prov, scale.model = TRUE, hyper = pc_prior_bym2) +
   f(id_space_int, model = "iid", group = id_time_discrete, control.group = list(model = "iid"))
+
+# TYPE II (Model 2): Base + Unstructured Space x Structured Time (iid x ar1)
+formula2 <- Y_turnout ~ 1 + Density_z + Aging_z + Education_z + Employment_z + LEGGE_ELETTORALE +
+  f(Time_Cont, model = "ou", values = target_time_cont, hyper = pc_prior_ou) + 
+  f(id_space_main, model = "bym2", graph = g_prov, scale.model = TRUE, hyper = pc_prior_bym2) +
+  f(id_space_int, model = "iid", group = id_time_yearly, control.group = list(model = "ar1", hyper = pc_prior_ar1))
 
 # TYPE III (Model 3): Base + Structured Space x Unstructured Time (besag x iid)
 formula3 <- Y_turnout ~ 1 + Density_z + Aging_z + Education_z + Employment_z + LEGGE_ELETTORALE +
@@ -198,35 +216,44 @@ formula3 <- Y_turnout ~ 1 + Density_z + Aging_z + Education_z + Employment_z + L
   f(id_space_main, model = "bym2", graph = g_prov, scale.model = TRUE, hyper = pc_prior_bym2) +
   f(id_space_int, model = "besag", graph = g_prov, group = id_time_discrete, control.group = list(model = "iid"))
 
-# BERNARDINELLI model (Model 4)
+# TYPE IV (Model 4): Base + Structured Space x Structured Time (besag x ar1)
 formula4 <- Y_turnout ~ 1 + Density_z + Aging_z + Education_z + Employment_z + LEGGE_ELETTORALE +
+  f(Time_Cont, model = "ou", values = target_time_cont, hyper = pc_prior_ou) + 
+  f(id_space_main, model = "bym2", graph = g_prov, scale.model = TRUE, hyper = pc_prior_bym2) +
+  f(id_space_int, model = "besag", graph = g_prov, group = id_time_yearly, control.group = list(model = "ar1", hyper = pc_prior_ar1))
+
+# BERNARDINELLI model (Model 5)
+formula5 <- Y_turnout ~ 1 + Density_z + Aging_z + Education_z + Employment_z + LEGGE_ELETTORALE +
   Time_Cont + 
   f(id_space_main, model = "bym2", graph = g_prov, scale.model = TRUE, hyper = pc_prior_bym2) +
-  # ADDED pc_prior_ou to the random slope to ensure consistency with Chapter 2!
   f(id_space_int, Time_Cont, model = "besag", graph = g_prov, scale.model = TRUE, hyper = pc_prior_ou)
 
-# BERNARDINELLI No Laws (Model 5)
-formula5 <- Y_turnout ~ 1 + Density_z + Aging_z + Education_z + Employment_z +
+# BERNARDINELLI No Laws (Model 6)
+formula6 <- Y_turnout ~ 1 + Density_z + Aging_z + Education_z + Employment_z +
   Time_Cont + 
   f(id_space_main, model = "bym2", graph = g_prov, scale.model = TRUE, hyper = pc_prior_bym2) +
   f(id_space_int, Time_Cont, model = "besag", graph = g_prov, scale.model = TRUE, hyper = pc_prior_ou)
+
 
 # ==============================================================================
 # PHASE 5: EXECUTING THE MODELS
 # ==============================================================================
-# Centralize controls so they are easy to change globally if needed
 ctrl_compute <- list(dic = TRUE, waic = TRUE, cpo = TRUE, config = TRUE)
 ctrl_pred    <- list(compute = TRUE, link = 1)
 
-# Model 0: Simple Beta GLM with no Spatial-Temporal effects
+# Baseline Model: Simple Beta GLM with no Spatial-Temporal effects
+model_baseline <- inla(formula_baseline, family = "beta", data = df_continuous,
+               control.compute = ctrl_compute, control.predictor = ctrl_pred, verbose = FALSE)
+
+# Model 0: Spatiotemporal model with no interactions
 model0 <- inla(formula0, family = "beta", data = df_continuous,
                control.compute = ctrl_compute, control.predictor = ctrl_pred, verbose = FALSE)
 
-# Model 1: Spatiotemporal model with no interactions
+# Model 1: Type I Interaction
 model1 <- inla(formula1, family = "beta", data = df_continuous,
                control.compute = ctrl_compute, control.predictor = ctrl_pred, verbose = FALSE)
 
-# Model 2: Type I Interaction
+# Model 2: Type II Interaction
 model2 <- inla(formula2, family = "beta", data = df_continuous,
                control.compute = ctrl_compute, control.predictor = ctrl_pred, verbose = FALSE)
 
@@ -234,12 +261,16 @@ model2 <- inla(formula2, family = "beta", data = df_continuous,
 model3 <- inla(formula3, family = "beta", data = df_continuous,
                control.compute = ctrl_compute, control.predictor = ctrl_pred, verbose = FALSE)
 
-# Model 4: Bernardinelli
+# Model 4: Type IV Interaction
 model4 <- inla(formula4, family = "beta", data = df_continuous,
+               control.compute = ctrl_compute, control.predictor = ctrl_pred, verbose = FALSE)
+
+# Model 5: Bernardinelli
+model5 <- inla(formula5, family = "beta", data = df_continuous,
   control.compute = ctrl_compute, control.predictor = ctrl_pred, verbose = FALSE)
 
-# Model 5: Bernardinelli No Laws
-model5 <- inla(formula5, family = "beta", data = df_continuous,
+# Model 6: Bernardinelli No Laws
+model6 <- inla(formula6, family = "beta", data = df_continuous,
                control.compute = ctrl_compute, control.predictor = ctrl_pred, verbose = FALSE)
 
 

@@ -23,7 +23,6 @@ options(brms.backend = "rstan")
 # ==============================================================================
 # 1. LOAD WORKSPACE & PREPARE TYPE III INTERACTION MATRIX
 # ==============================================================================
-# Load your existing INLA workspace containing df_continuous, W, nb_prov, map_prov_2022, and model3
 # load("C:/Users/massi/OneDrive/Desktop/Spatiotemporal-model-for-voter-turnouts-with-R-INLA/Outputs.RData")
 
 # 1. Prepare the Spatial Weight Matrix
