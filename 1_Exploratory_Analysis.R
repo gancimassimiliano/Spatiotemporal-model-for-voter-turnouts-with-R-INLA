@@ -8,11 +8,6 @@ library(viridis)
 library(stringr)
 library(tidyr)
 
-# 2. The Verification Check
-# Let's print the exact row to the console to prove the surgery was successful
-df_storico_master %>%
-  filter(as.numeric(PRO_COM) == 87009, as.numeric(ANNO) == 1996) %>%
-  select(PRO_COM, COMUNE, ANNO, TIPO_ELEZIONE, ELETTORI)
 
 ################################################################################
 ### 1.1 HISTORICAL VOTER TURNOUT (SENATO)###
@@ -83,7 +78,8 @@ master_map_data <- bind_rows(map_87_96, map_01, map_06, map_08, map_13, map_18, 
   filter(!is.na(ANNO))
 
 plot1 <- ggplot(master_map_data) +
-  geom_sf(aes(fill = TURNOUT), color = "grey30", size = 0.1) +
+  # Updated to match the thinner black borders of the posterior maps
+  geom_sf(aes(fill = TURNOUT), color = "black", linewidth = 0.05) + 
   scale_fill_distiller(
     palette = "YlGnBu", 
     direction = 1, 
@@ -98,20 +94,30 @@ plot1 <- ggplot(master_map_data) +
     caption = "Source: ELIGENDO | Mapping: ISTAT Historical Borders"
   ) +
   theme(
-    plot.title = element_text(size = 20, face = "bold", hjust = 0.5),
-    plot.subtitle = element_text(size = 14, hjust = 0.5, color = "grey30", margin = margin(b = 20)),
-    strip.text = element_text(size = 12, face = "bold"),
+    # Aligned title sizes with your posterior estimate maps
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 12, hjust = 0.5, color = "grey30", margin = margin(b = 15)),
+    
+    # --- THIS CREATES THE BOXES AROUND THE YEARS AND PANELS ---
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
+    strip.background = element_rect(fill = "#faebd7", color = "black", linewidth = 1),
+    strip.text = element_text(size = 11, face = "bold", margin = margin(t = 5, b = 5)),
+    
+    # Legend styling matched to the MCMC script
     legend.position = "bottom",
-    legend.key.width = unit(2, "cm")
+    legend.title = element_text(face = "bold"),
+    legend.key.width = unit(2.5, "cm")
   )
+
+print(plot1)
 
 ggsave(
   filename = "Map_National_Turnout_Camera.png", 
   plot = plot1, 
-  width = 10,       # 10 inches wide is great for a line chart
-  height = 6,       # 6 inches tall keeps it nicely proportioned
-  dpi = 300,        # 300 DPI is the standard requirement for academic printing
-  bg = "white"      # Ensures a solid white background
+  width = 11.7,       
+  height = 8.3,       
+  dpi = 300,          
+  bg = "white"        
 )
 
 ################################################################################
@@ -200,10 +206,10 @@ plot2 <- ggplot(master_map_data) +
 ggsave(
   filename = "Map_National_Turnout_Camera.png", 
   plot = plot2, 
-  width = 10,       # 10 inches wide is great for a line chart
-  height = 6,       # 6 inches tall keeps it nicely proportioned
-  dpi = 300,        # 300 DPI is the standard requirement for academic printing
-  bg = "white"      # Ensures a solid white background
+  width = 10,       
+  height = 6,       
+  dpi = 300,       
+  bg = "white"     
 )
 
 ################################################################################
@@ -213,7 +219,7 @@ ggsave(
 library(gganimate)
 library(gifski)
 
-# 1. Build the animated ggplot object
+# Build the animated ggplot object
 plot3 <- ggplot(master_map_data) +
   geom_sf(aes(fill = TURNOUT), color = "grey30", linewidth = 0.1) +
   scale_fill_distiller(
@@ -236,12 +242,9 @@ plot3 <- ggplot(master_map_data) +
     legend.position = "bottom",
     legend.key.width = unit(2, "cm")
   ) +
-  # 2. Add the gganimate transition rule
-  # We use transition_manual to prevent R from trying to "morph" the changing province borders
   transition_manual(ANNO)
 
-# 3. Render the animation
-# We assign it to an object so we can view it and save it
+# Render the animation
 anim <- animate(
   plot3, 
   fps = 5,          # Speed: 1.5 frames per second (slow enough to read the map)
@@ -252,7 +255,7 @@ anim <- animate(
   bg = "white"        # Force white background
 )
 
-# 4. Save the GIF to your computer
+# Save the GIF to your computer
 anim_save("Animated_National_Turnout.gif", animation = anim)
 
 ################################################################################
@@ -274,7 +277,6 @@ national_turnout <- df_storico_master %>%
     TURNOUT_NAZ = (Naz_Votanti / Naz_Elettori) * 100
   )
 
-# 1. Assign your entire plot to an object
 trend_plot <- ggplot(national_turnout, aes(x = ANNO, y = TURNOUT_NAZ)) +
   geom_vline(xintercept = c(1993, 2005, 2017), linetype = "dashed", color = "red", linewidth = 0.8) +
   annotate("text", x = 1993 - 0.5, y = 65, label = "Mattarellum", color = "red", angle = 90, size = 3) +
@@ -299,14 +301,13 @@ trend_plot <- ggplot(national_turnout, aes(x = ANNO, y = TURNOUT_NAZ)) +
   )
 
 
-# 3. Export the plot in high resolution
 ggsave(
   filename = "National_Turnout_Trend.png", 
   plot = trend_plot, 
-  width = 10,       # 10 inches wide is great for a line chart
-  height = 6,       # 6 inches tall keeps it nicely proportioned
-  dpi = 300,        # 300 DPI is the standard requirement for academic printing
-  bg = "white"      # Ensures a solid white background
+  width = 10,       
+  height = 6,       
+  dpi = 300,        
+  bg = "white"      
 )
 
 ################################################################################
@@ -446,9 +447,7 @@ for (reg in all_regions) {
   # Clean the region name to make it a safe filename 
   # (e.g., "VALLE D'AOSTA" becomes "VALLE_D_AOSTA")
   safe_filename <- str_replace_all(reg, "[^A-Za-z0-9]", "_")
-  
-  # We use tryCatch() so if one region has weird missing data, 
-  # it doesn't crash the loop for the rest of the regions!
+
   tryCatch({
     
     # Generate the plot using our updated function
@@ -720,9 +719,9 @@ for (cov in names(all_maps)) {
   ggsave(
     filename = paste0("Map", cov, ".png"), 
     plot = all_maps[[cov]], 
-    width = 16,     # Adjust width for your thesis page size
-    height = 6,     # Changed height to 6 since it's just one row of 5 maps now!
-    dpi = 300,       # High resolution for printing
+    width = 16,    
+    height = 6,    
+    dpi = 300,      
     bg = "white"
   )
 }
@@ -759,96 +758,10 @@ plot_slope <- ggplot(slope_data, aes(x = Avg_Employment, y = TURNOUT)) +
   theme(
     plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
     plot.subtitle = element_text(size = 14, hjust = 0.5, color = "grey30", margin = margin(b = 15)),
-    strip.text = element_text(size = 12, face = "bold", bg = "grey90")
+    # 1. Remove 'bg' from element_text
+    strip.text = element_text(size = 12, face = "bold"),
+    # 2. Add strip.background to color the box behind the text
+    strip.background = element_rect(fill = "grey80", color = "grey80") 
   )
 
 ggsave("EDA_Slope_Employment.png", plot = plot_slope, width = 12, height = 8, dpi = 300, bg = "white")
-
-
-##########################
-
-library(dplyr)
-library(tidyr)
-
-# 1. Build the dataset and globally standardize the variables
-covariate_data_macro <- provincial_turnout %>%
-  left_join(
-    df_storico_master %>%
-      filter(TIPO_ELEZIONE == "Camera") %>%
-      distinct(ANNO, COD_PROV, REGIONE, P13_Aging, P7_Density, SS4_Education, L12_Employment, ELETTORI) %>%
-      group_by(ANNO, COD_PROV, REGIONE) %>%
-      summarise(
-        Aging = weighted.mean(P13_Aging, w = ELETTORI, na.rm = TRUE),
-        Density = weighted.mean(P7_Density, w = ELETTORI, na.rm = TRUE),
-        Education = weighted.mean(SS4_Education, w = ELETTORI, na.rm = TRUE),
-        Employment = weighted.mean(L12_Employment, w = ELETTORI, na.rm = TRUE),
-        .groups = 'drop'
-      ),
-    by = c("ANNO", "COD_PROV")
-  ) %>%
-  mutate(
-    MACRO = case_when(
-      toupper(REGIONE) %in% north_regions ~ "North",
-      toupper(REGIONE) %in% south_regions ~ "South",
-      TRUE ~ "Center"
-    ),
-    MACRO = factor(MACRO, levels = c("North", "Center", "South")) 
-  ) %>%
-  select(ANNO, COD_PROV, MACRO, Aging, Density, Education, Employment) %>% 
-  drop_na() %>%
-  # --- NEW: Calculate global Z-scores for each covariate ---
-  mutate(
-    Std_Aging = as.numeric(scale(Aging)),
-    Std_Density = as.numeric(scale(Density)),
-    Std_Education = as.numeric(scale(Education)),
-    Std_Employment = as.numeric(scale(Employment))
-  )
-
-# 2. Calculate Macro-Regional raw and standardized averages for each year
-covariate_table <- covariate_data_macro %>%
-  group_by(ANNO, MACRO) %>%
-  summarise(
-    # Raw Averages
-    Avg_Aging = mean(Std_Aging, na.rm = TRUE),
-    Avg_Density = mean(Std_Density, na.rm = TRUE),
-    Avg_Education = mean(Std_Education, na.rm = TRUE),
-    Avg_Employment = mean(Std_Employment, na.rm = TRUE),
-    .groups = 'drop'
-  ) %>%
-  mutate(
-    across(starts_with("Avg_"), ~round(., 1)),
-    across(starts_with("Z_"), ~round(., 2)) # 2 decimals are standard for Z-scores
-  )
-
-# View the final table
-print(covariate_table, n = 30)
-
-# Filter the data for JUST the 2022 election to eliminate temporal confounding
-linearity_2022 <- linearity_data_macro %>%
-  filter(ANNO == 2022) 
-
-# Re-run the plot
-plot_linearity_2022 <- ggplot(linearity_2022, aes(x = Value, y = TURNOUT, color = MACRO)) +
-  geom_point(alpha = 0.6, size = 2) +
-  geom_smooth(method = "lm", se = FALSE, linewidth = 1.2) +
-  facet_wrap(~ Covariate, scales = "free_x") +
-  scale_color_manual(values = c("North" = "steelblue", "Center" = "forestgreen", "South" = "firebrick")) +
-  theme_bw() +
-  labs(
-    title = "Cross-Sectional Covariate Linearity (2022 Election)",
-    subtitle = "Isolating spatial relationships by removing temporal confounding",
-    y = "Provincial Turnout (%)",
-    x = "Covariate Value",
-    color = "Macro-Region"
-  ) +
-  theme(
-    plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
-    plot.subtitle = element_text(size = 14, hjust = 0.5, color = "grey30", margin = margin(b = 15)),
-    strip.text = element_text(size = 12, face = "bold"),
-    legend.position = "bottom"
-  )
-
-ggsave("EDA_Linearity_2022_Snapshot.png", plot = plot_linearity_2022, width = 12, height = 8, dpi = 300, bg = "white")
-
-
-##############

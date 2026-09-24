@@ -99,7 +99,6 @@ df_model_scaled <- df_model %>%
     Education_z  = scale(SS4_Education)[,1],
     Employment_z = scale(L12_Employment)[,1]
   ) %>%
-  # ADD THIS: Bring the electoral laws back into the final dataset!
   left_join(electoral_laws_timeline, by = "ANNO")
 
 # ==============================================================================
@@ -217,7 +216,7 @@ formula3 <- Y_turnout ~ 1 + Density_z + Aging_z + Education_z + Employment_z + L
   f(id_space_int, model = "besag", graph = g_prov, group = id_time_discrete, control.group = list(model = "iid"))
 
 # TYPE IV (Model 4): Base + Structured Space x Structured Time (besag x ar1)
-formula4 <- Y_turnout ~ 1 + Density_z + Aging_z + Education_z + Employment_z + LEGGE_ELETTORALE +
+formula4 <- Y_turnout ~ 1 + Density_z + Aging_z + Education_z + Employment_z  +
   f(Time_Cont, model = "ou", values = target_time_cont, hyper = pc_prior_ou) + 
   f(id_space_main, model = "bym2", graph = g_prov, scale.model = TRUE, hyper = pc_prior_bym2) +
   f(id_space_int, model = "besag", graph = g_prov, group = id_time_yearly, control.group = list(model = "ar1", hyper = pc_prior_ar1))
